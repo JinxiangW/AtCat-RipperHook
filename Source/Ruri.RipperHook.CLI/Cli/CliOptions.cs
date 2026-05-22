@@ -35,6 +35,22 @@ internal sealed class CliOptions
     /// AnimatorController (its BlendTrees / clip refs live in sibling chks).
     /// </summary>
     public string? CabMapPath { get; init; }
+
+    public string? GameRoot { get; init; }
+    public string? OutputRoot { get; init; }
+    public string? VfsDbPath { get; init; }
+    public bool BuildVfsIndex { get; init; }
+    public bool ProbeVfsMetadata { get; init; }
+    public bool ProbeVfsHitMetadata { get; init; }
+    public bool Resume { get; init; }
+    public string? Shard { get; init; }
+    public string? ScanVfsTerms { get; init; }
+    public string? VfsDeps { get; init; }
+    public string? ClosureOut { get; init; }
+    public string? LoadLogical { get; init; }
+    public bool ResolveVfsDeps { get; init; }
+    public string? RepairUnityMaterials { get; init; }
+    public string? RepairReport { get; init; }
 }
 
 internal sealed class CliOptionsBinder : BinderBase<CliOptions>
@@ -51,6 +67,21 @@ internal sealed class CliOptionsBinder : BinderBase<CliOptions>
     public Option<bool> FailFast { get; }
     public Option<string?> BuildCabMap { get; }
     public Option<string?> CabMap { get; }
+    public Option<string?> GameRoot { get; }
+    public Option<string?> OutputRoot { get; }
+    public Option<string?> VfsDb { get; }
+    public Option<bool> BuildVfsIndex { get; }
+    public Option<bool> ProbeVfsMetadata { get; }
+    public Option<bool> ProbeVfsHitMetadata { get; }
+    public Option<bool> Resume { get; }
+    public Option<string?> Shard { get; }
+    public Option<string?> ScanVfsTerms { get; }
+    public Option<string?> VfsDeps { get; }
+    public Option<string?> ClosureOut { get; }
+    public Option<string?> LoadLogical { get; }
+    public Option<bool> ResolveVfsDeps { get; }
+    public Option<string?> RepairUnityMaterials { get; }
+    public Option<string?> RepairReport { get; }
     public Argument<string[]> Passthrough { get; }
 
     public CliOptionsBinder()
@@ -104,6 +135,21 @@ internal sealed class CliOptionsBinder : BinderBase<CliOptions>
         FailFast = new Option<bool>("--fail-fast", () => true, "Abort on first per-asset export failure (default true).");
         BuildCabMap = new Option<string?>("--build-cab-map", "Build a CABMap (.bin) for --load[0] and exit. Format matches the GUI Asset Browser CABMap.");
         CabMap = new Option<string?>("--cab-map", "Load a CABMap (.bin) and expand each --load entry to its transitive CAB dependencies before handing files to AR.");
+        GameRoot = new Option<string?>("--game-root", "Endfield game root for VFS indexing.");
+        OutputRoot = new Option<string?>("--output-root", "Directory for VFS reports and temporary materialized bundles.");
+        VfsDb = new Option<string?>("--vfs-db", "SQLite database for Endfield VFS logical .ab / CAB metadata.");
+        BuildVfsIndex = new Option<bool>("--build-vfs-index", "Build or refresh the Endfield VFS logical file index.");
+        ProbeVfsMetadata = new Option<bool>("--probe-vfs-metadata", "Probe indexed VFS .ab payloads and record CAB dependencies.");
+        ProbeVfsHitMetadata = new Option<bool>("--probe-vfs-hit-metadata", "When probing VFS metadata, only process payloads present in term_hits.");
+        Resume = new Option<bool>("--resume", "Skip VFS metadata payloads that already have terminal status.");
+        Shard = new Option<string?>("--shard", "Process shard i/n for long VFS metadata or term scans.");
+        ScanVfsTerms = new Option<string?>("--scan-vfs-terms", "Scan indexed logical .ab payloads for terms. Value is a file path or comma-separated terms.");
+        VfsDeps = new Option<string?>("--vfs-deps", "Resolve transitive VFS CAB dependencies from a logical .ab path or CAB name.");
+        ClosureOut = new Option<string?>("--closure-out", "Write VFS dependency closure or scan report JSON to this path.");
+        LoadLogical = new Option<string?>("--load-logical", "Materialize and load one indexed logical .ab path or CAB seed.");
+        ResolveVfsDeps = new Option<bool>("--resolve-vfs-deps", "Expand --load-logical through the VFS CAB dependency closure before loading.");
+        RepairUnityMaterials = new Option<string?>("--repair-unity-materials", "Inspect one ExportedProject and write material dependency reports.");
+        RepairReport = new Option<string?>("--repair-report", "Directory for material repair/dependency reports.");
         Passthrough = new Argument<string[]>("passthrough", () => [], "Forwarded to AssetRipper Web UI when --load is omitted.");
         Passthrough.Arity = ArgumentArity.ZeroOrMore;
     }
@@ -124,6 +170,21 @@ internal sealed class CliOptionsBinder : BinderBase<CliOptions>
             FailFast,
             BuildCabMap,
             CabMap,
+            GameRoot,
+            OutputRoot,
+            VfsDb,
+            BuildVfsIndex,
+            ProbeVfsMetadata,
+            ProbeVfsHitMetadata,
+            Resume,
+            Shard,
+            ScanVfsTerms,
+            VfsDeps,
+            ClosureOut,
+            LoadLogical,
+            ResolveVfsDeps,
+            RepairUnityMaterials,
+            RepairReport,
             Passthrough,
         };
         return root;
@@ -146,6 +207,21 @@ internal sealed class CliOptionsBinder : BinderBase<CliOptions>
             FailFast = pr.GetValueForOption(FailFast),
             BuildCabMapPath = pr.GetValueForOption(BuildCabMap),
             CabMapPath = pr.GetValueForOption(CabMap),
+            GameRoot = pr.GetValueForOption(GameRoot),
+            OutputRoot = pr.GetValueForOption(OutputRoot),
+            VfsDbPath = pr.GetValueForOption(VfsDb),
+            BuildVfsIndex = pr.GetValueForOption(BuildVfsIndex),
+            ProbeVfsMetadata = pr.GetValueForOption(ProbeVfsMetadata),
+            ProbeVfsHitMetadata = pr.GetValueForOption(ProbeVfsHitMetadata),
+            Resume = pr.GetValueForOption(Resume),
+            Shard = pr.GetValueForOption(Shard),
+            ScanVfsTerms = pr.GetValueForOption(ScanVfsTerms),
+            VfsDeps = pr.GetValueForOption(VfsDeps),
+            ClosureOut = pr.GetValueForOption(ClosureOut),
+            LoadLogical = pr.GetValueForOption(LoadLogical),
+            ResolveVfsDeps = pr.GetValueForOption(ResolveVfsDeps),
+            RepairUnityMaterials = pr.GetValueForOption(RepairUnityMaterials),
+            RepairReport = pr.GetValueForOption(RepairReport),
             Passthrough = pr.GetValueForArgument(Passthrough) ?? [],
         };
     }

@@ -45,6 +45,11 @@ internal static class Program
 
         ApplyHooks(opts);
 
+        if (VfsCliRunner.ShouldRun(opts))
+        {
+            return VfsCliRunner.Run(opts);
+        }
+
         if (opts.BuildCabMapPath is { Length: > 0 } buildOut)
         {
             if (opts.LoadPaths.Length == 0)
