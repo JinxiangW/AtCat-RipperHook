@@ -146,6 +146,9 @@ internal static class Program
                 }));
                 return 1;
             }
+        if (VfsCliRunner.ShouldRun(opts))
+        {
+            return VfsCliRunner.Run(opts);
         }
 
         if (opts.BuildCabMapPath is { Length: > 0 } buildOut)
