@@ -25,3 +25,5 @@ __pycache__/
 *.pyc
 # UE -> Unity YAML export self-test output (CLI clears each run)
 TestLoopOutput/
+# Local investigation reports
+Report/

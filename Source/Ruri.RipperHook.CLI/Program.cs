@@ -2,8 +2,10 @@ using System;
 using System.CommandLine;
 using System.CommandLine.Builder;
 using System.CommandLine.Parsing;
+using Newtonsoft.Json;
 using Ruri.Hook.Config;
 using Ruri.RipperHook;
+using Ruri.RipperHook.EndField;
 
 namespace Ruri.RipperHook.CLI;
 
@@ -37,6 +39,76 @@ internal static class Program
 
     private static int Dispatch(CliOptions opts)
     {
+        if (opts.EndFieldNativeReaderProbePath is { Length: > 0 } nativeReaderProbePath)
+        {
+            foreach (string line in EndFieldNativeReaderProbe.Analyze(nativeReaderProbePath))
+            {
+                Console.Error.WriteLine($"[EndField] {line}");
+            }
+            return 0;
+        }
+
+        if (opts.EndFieldAssetLocatorPath is { Length: > 0 } assetLocatorPath)
+        {
+            if (string.IsNullOrWhiteSpace(opts.EndFieldQuery))
+            {
+                Console.Error.WriteLine("[EndField] --endfield-asset-locator requires --query <text>.");
+                return 1;
+            }
+
+            if (opts.EndFieldMetadataOut is { Length: > 0 } metadataOut)
+            {
+                string outputPath = EndFieldAssetLocatorProbe.ExportMetadata(assetLocatorPath, opts.EndFieldQuery, metadataOut, opts.EndFieldLocatorMaxMatches);
+                Console.Error.WriteLine($"[EndField] metadata out={outputPath}");
+                return 0;
+            }
+
+            foreach (string line in EndFieldAssetLocatorProbe.Analyze(assetLocatorPath, opts.EndFieldQuery, opts.EndFieldLocatorMaxMatches))
+            {
+                Console.Error.WriteLine($"[EndField] {line}");
+            }
+            return 0;
+        }
+
+        if (opts.EndFieldVfsIndexPath is { Length: > 0 } vfsIndexPath)
+        {
+            string outputRoot = EndFieldVfsIndexExporter.Export(vfsIndexPath, opts.EndFieldVfsIndexOut);
+            Console.Error.WriteLine($"[EndField] vfs index out={outputRoot}");
+            return 0;
+        }
+
+        if (opts.EndFieldQueryIndexPath is { Length: > 0 } queryIndexPath)
+        {
+            if (string.IsNullOrWhiteSpace(opts.EndFieldQuery))
+            {
+                Console.Error.WriteLine("[EndField] --endfield-query-index requires --query <text>.");
+                return 1;
+            }
+
+            try
+            {
+                ApplyHookIds(opts.Hooks.Length == 0 ? ["EndField_0.8.25"] : opts.Hooks);
+                var summary = EndFieldAssetIndex.Query(new EndFieldAssetIndex.QueryOptions(
+                    queryIndexPath,
+                    opts.EndFieldQuery,
+                    opts.EndFieldTargetTypes,
+                    opts.EndFieldReportOut));
+                HeadlessRunner.JsonStdout.WriteLine(JsonConvert.SerializeObject(summary));
+                return summary.Status == "ok" ? 0 : 4;
+            }
+            catch (Exception ex)
+            {
+                HeadlessRunner.JsonStdout.WriteLine(JsonConvert.SerializeObject(new
+                {
+                    status = "error",
+                    query = opts.EndFieldQuery,
+                    index_db = queryIndexPath,
+                    error = $"{ex.GetType().Name}: {ex.Message}",
+                }));
+                return 1;
+            }
+        }
+
         if (opts.ListHooks)
         {
             ApplyHooks(opts);
@@ -44,6 +116,37 @@ internal static class Program
         }
 
         ApplyHooks(opts);
+
+        if (opts.EndFieldBuildAssetIndexPath is { Length: > 0 } buildAssetIndexPath)
+        {
+            if (string.IsNullOrWhiteSpace(opts.EndFieldIndexDbPath))
+            {
+                Console.Error.WriteLine("[EndField] --endfield-build-asset-index requires --index-db <sqlite>.");
+                return 1;
+            }
+
+            try
+            {
+                var summary = EndFieldAssetIndex.Build(new EndFieldAssetIndex.BuildOptions(
+                    buildAssetIndexPath,
+                    opts.EndFieldIndexDbPath,
+                    opts.EndFieldIndexParallel,
+                    opts.EndFieldDeepAssetIndex));
+                HeadlessRunner.JsonStdout.WriteLine(JsonConvert.SerializeObject(summary));
+                return summary.Status == "ok" || summary.Status == "partial" ? 0 : 1;
+            }
+            catch (Exception ex)
+            {
+                HeadlessRunner.JsonStdout.WriteLine(JsonConvert.SerializeObject(new
+                {
+                    status = "error",
+                    game_data = buildAssetIndexPath,
+                    index_db = opts.EndFieldIndexDbPath,
+                    error = $"{ex.GetType().Name}: {ex.Message}",
+                }));
+                return 1;
+            }
+        }
 
         if (opts.BuildCabMapPath is { Length: > 0 } buildOut)
         {
@@ -67,17 +170,23 @@ internal static class Program
 
     private static void ApplyHooks(CliOptions opts)
     {
-        var config = new HookConfig();
-        foreach (string id in opts.Hooks)
-        {
-            config.EnabledHooks.Add(NormalizeHookId(id));
-        }
+        var hookIds = new List<string>(opts.Hooks);
         // --load-types implies the export should be filtered to those same types.
         if (opts.LoadTypes.Length > 0)
         {
-            config.EnabledHooks.Add("AR_TypeFilterExport_");
+            hookIds.Add("AR_TypeFilterExport_");
         }
-        if (opts.Hooks.Length > 0 || opts.LoadTypes.Length > 0)
+        ApplyHookIds(hookIds);
+    }
+
+    private static void ApplyHookIds(IEnumerable<string> hookIds)
+    {
+        var config = new HookConfig();
+        foreach (string id in hookIds)
+        {
+            config.EnabledHooks.Add(NormalizeHookId(id));
+        }
+        if (config.EnabledHooks.Count > 0)
         {
             Console.Error.WriteLine($"[Ruri.CLI] hooks: {string.Join(", ", config.EnabledHooks)}");
         }
