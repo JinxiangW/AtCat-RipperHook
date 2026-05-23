@@ -206,7 +206,7 @@ internal static class HashedNamesResolver
     // `unchecked` so the CityHash-spec-correct wrapping is preserved.
     //
     // Constants from UE's canonical CityHash 1.1.0:
-    //   D:/GameStudy/UnrealEngine-5.1.1-release/Engine/Source/Runtime/Core/Private/Hash/CityHash.cpp:122-124
+    //   <UE_SOURCE_ROOT>/Engine/Source/Runtime/Core/Private/Hash/CityHash.cpp:122-124
     //   k0 = 0xc3a5c85c97cb3127  k1 = 0xb492b66fbe98f273  k2 = 0x9ae16a3b2f90404f
     // The Murmur-inspired final-mix uses a DIFFERENT constant `kMul` that
     // only appears in the 2-arg HashLen16(u,v) form (Hash128to64::kMul).
