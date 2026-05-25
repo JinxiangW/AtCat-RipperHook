@@ -2,8 +2,7 @@ using System.Text.RegularExpressions;
 
 namespace Ruri.UEShaderTpkDumper.Parser;
 
-// Auto-discover UE source trees under a single root (default
-// `D:\GameStudy\UE`). Each first-level subdir is one engine version —
+// Auto-discover UE source trees under a single root. Each first-level subdir is one engine version —
 // the version string is extracted from the folder name with a flexible
 // pattern, so the user-downloaded raw names like `UnrealEngine-5.4.4-release`
 // don't have to be renamed. Patterns recognised:

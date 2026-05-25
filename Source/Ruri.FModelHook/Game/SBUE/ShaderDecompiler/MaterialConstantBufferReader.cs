@@ -309,13 +309,55 @@ internal static class MaterialConstantBufferReader
 
     private static string RegisterUniqueName(HashSet<string> seenNames, string candidate, int byteOffset)
     {
-        if (seenNames.Add(candidate))
-        {
-            return candidate;
-        }
-        string disambiguated = $"{candidate}_at_{byteOffset}";
+        // CRITICAL: sanitize FIRST, then dedupe. Two raw parameter names like
+        // "AO " (trailing space) and "AO" both render to "AO_" in HLSL after
+        // spirv-cross's identifier sanitisation. If we dedupe on the RAW
+        // string the two entries pass the HashSet (different keys), but the
+        // emitted HLSL has duplicate `Material_AO_` declarations and fails
+        // to compile. Dedupe must operate on the post-sanitised form to
+        // match the cbuffer member text that actually reaches the consumer.
+        string sanitized = SanitizeHlslIdent(candidate);
+        // An empty author name (or sanitisation collapsed it to "") would
+        // emit as `Material_` — an illegal HLSL identifier (trailing _).
+        // Substitute a byte-offset-based stable placeholder so the slot is
+        // distinct and pronounceable.
+        if (string.IsNullOrEmpty(sanitized)) sanitized = $"f_{byteOffset}";
+        if (seenNames.Add(sanitized)) return sanitized;
+        string disambiguated = $"{sanitized}_at_{byteOffset}";
         seenNames.Add(disambiguated);
         return disambiguated;
+    }
+
+    // Sanitize to a HLSL-safe identifier MATCHING spirv-cross's emit-side
+    // rule: non-alphanumeric → `_`, collapse runs of `_`, trim trailing
+    // `_`. CRITICAL for non-Latin author names (CJK, Cyrillic, etc.):
+    // raw "AO对自发光的遮蔽强度" produces "AO_________" before collapse;
+    // raw "AO强度" produces "AO__". Both collapse to "AO_" in HLSL,
+    // colliding — and any dedup keyed on the un-collapsed form misses
+    // this. By collapsing+trimming here, dedup sees the same key that
+    // ends up in the shader source.
+    private static string SanitizeHlslIdent(string raw)
+    {
+        if (string.IsNullOrEmpty(raw)) return string.Empty;
+        var sb = new System.Text.StringBuilder(raw.Length);
+        bool lastUnderscore = false;
+        foreach (char c in raw)
+        {
+            bool isAlnum = (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9');
+            if (isAlnum) { sb.Append(c); lastUnderscore = false; }
+            else if (!lastUnderscore) { sb.Append('_'); lastUnderscore = true; }
+        }
+        // Trim leading AND trailing `_`. spirv-cross's HLSL emit also
+        // collapses underscore runs across the cbuffer-variable prefix
+        // boundary (`Material_` + `_AO` → `Material_AO`); trimming both
+        // sides aligns dedup with the actual emitted form.
+        int start = 0;
+        while (start < sb.Length && sb[start] == '_') start++;
+        int end = sb.Length;
+        while (end > start && sb[end - 1] == '_') end--;
+        if (end == start) return string.Empty;
+        string body = sb.ToString(start, end - start);
+        return (body[0] >= '0' && body[0] <= '9') ? "_" + body : body;
     }
 
     private static void AddVectorMember(List<VectorParameter> destination, string name, int byteOffset, int rows, ShaderParamType type)

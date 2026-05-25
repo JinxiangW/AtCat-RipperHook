@@ -8,9 +8,9 @@ run as a one-shot CLI per engine version.
 ## Run
 
 ```powershell
-# Default: scan D:\GameStudy\UE\* for first-level subdirs whose names
-# contain a <X.Y.Z> version, emit per-version JSONs to the committed
-# EngineUbMetadata folder.
+# Default: scan $env:UE_SOURCE_ROOT, or .\External\UE when the env var is
+# not set, for first-level subdirs whose names contain a <X.Y.Z> version.
+# Emit per-version JSONs to the committed EngineUbMetadata folder.
 dotnet run --project Source/Ruri.UEShaderTpkDumper
 
 # Limit to one engine
@@ -21,8 +21,8 @@ dotnet run --project Source/Ruri.UEShaderTpkDumper -- --list
 
 # Custom roots
 dotnet run --project Source/Ruri.UEShaderTpkDumper -- \
-    --ue-root "D:\custom\path" \
-    --out-root "C:\custom\out"
+    --ue-root ".\External\UE" \
+    --out-root ".\Source\Ruri.FModelHook\EngineUbMetadata"
 ```
 
 ## Source layout

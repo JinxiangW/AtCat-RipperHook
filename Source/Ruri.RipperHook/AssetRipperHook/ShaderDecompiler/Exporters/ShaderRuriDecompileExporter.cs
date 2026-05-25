@@ -36,6 +36,12 @@ public sealed class ShaderRuriDecompileExporter : ShaderExporterBase
     public static Action<SerializedProgramData, ShaderSubProgram, ShaderReadContext>? PostProcessSymbols;
 
     /// <summary>
+    /// Optional game-specific mapping for proprietary raw GPU program type values that are not
+    /// present in Unity's public enum tables. Generic Unity shaders leave this unset.
+    /// </summary>
+    public static Func<UnityVersion, sbyte, GPUPlatform?>? ResolveRawProgramPlatform;
+
+    /// <summary>
     /// Live-read from the persisted ShaderDecompilerSettings snapshot
     /// (loaded at host startup, mutated by the host's settings UI).
     /// When true, multi-variant stages get their HLSL bodies emitted to
@@ -480,7 +486,7 @@ public sealed class ShaderRuriDecompileExporter : ShaderExporterBase
             SerializedProgramData symbols = new()
             {
                 EntryPoint = "main",
-                DebugName = $"{read.ShaderName}/SubShader{read.SubShaderIndex}/Pass{read.PassIndex}/{read.Stage}/{read.SubProgram.GetProgramType(read.Version)}/{read.BlobIndex}",
+                DebugName = $"{read.ShaderName}/SubShader{read.SubShaderIndex}/Pass{read.PassIndex}/{read.Stage}/{DescribeProgramType(read.Version, read.SubProgram.ProgramType)}/{read.BlobIndex}",
             };
 
             AppendSymbols(symbols, read.CommonSymbols);
@@ -948,7 +954,44 @@ public sealed class ShaderRuriDecompileExporter : ShaderExporterBase
 
         byte[] trimmed = new byte[programData.Length - offset];
         Buffer.BlockCopy(programData, offset, trimmed, 0, trimmed.Length);
+
+        int embeddedDxbcOffset = IndexOf(trimmed, "DXBC"u8);
+        if (embeddedDxbcOffset >= 0)
+        {
+            return trimmed.AsSpan(embeddedDxbcOffset).ToArray();
+        }
+
+        int embeddedDxilOffset = IndexOf(trimmed, "BC\xc0\xde"u8);
+        if (embeddedDxilOffset >= 0)
+        {
+            return trimmed.AsSpan(embeddedDxilOffset).ToArray();
+        }
+
+        int embeddedSpirvOffset = IndexOf(trimmed, "\x03\x02\x23\x07"u8);
+        if (embeddedSpirvOffset >= 0)
+        {
+            return trimmed.AsSpan(embeddedSpirvOffset).ToArray();
+        }
+
         return trimmed;
+    }
+
+    private static int IndexOf(ReadOnlySpan<byte> data, ReadOnlySpan<byte> needle)
+    {
+        if (needle.Length == 0 || data.Length < needle.Length)
+        {
+            return -1;
+        }
+
+        for (int i = 0; i <= data.Length - needle.Length; i++)
+        {
+            if (data.Slice(i, needle.Length).SequenceEqual(needle))
+            {
+                return i;
+            }
+        }
+
+        return -1;
     }
 
     private static string SanitizeFileName(string value)
@@ -989,9 +1032,10 @@ public sealed class ShaderRuriDecompileExporter : ShaderExporterBase
                 {
                     SerializedPlayerSubProgram playerSubProgram = group[i];
                     uint? parameterBlobIndex = paramGroup is not null && i < paramGroup.Count ? paramGroup[i] : null;
-                    ShaderGpuProgramType unityType = ToUnityProgramType(version, playerSubProgram.GpuProgramType);
-                    GPUPlatform resolvedPlatform = ProgramTypeToPlatform(unityType);
-                    Console.WriteLine($"[ShaderEnum]   Player group={groupIndex} index={i} blob={playerSubProgram.BlobIndex} paramBlob={(parameterBlobIndex.HasValue ? parameterBlobIndex.Value.ToString() : "<none>")} rawType={playerSubProgram.GpuProgramType} unityType={unityType} platform={resolvedPlatform} keywords=[{string.Join(",", playerSubProgram.KeywordIndices ?? [])}]");
+                    GPUPlatform resolvedPlatform = TryResolveProgramPlatform(version, playerSubProgram.GpuProgramType, out GPUPlatform platform)
+                        ? platform
+                        : GPUPlatform.Unknown;
+                    Console.WriteLine($"[ShaderEnum]   Player group={groupIndex} index={i} blob={playerSubProgram.BlobIndex} paramBlob={(parameterBlobIndex.HasValue ? parameterBlobIndex.Value.ToString() : "<none>")} rawType={playerSubProgram.GpuProgramType} programType={DescribeProgramType(version, playerSubProgram.GpuProgramType)} platform={resolvedPlatform} keywords=[{string.Join(",", playerSubProgram.KeywordIndices ?? [])}]");
                 }
             }
         }
@@ -999,16 +1043,58 @@ public sealed class ShaderRuriDecompileExporter : ShaderExporterBase
         for (int i = 0; i < program.SubPrograms.Count; i++)
         {
             ISerializedSubProgram subProgram = program.SubPrograms[i];
-            ShaderGpuProgramType unityType = ToUnityProgramType(version, (sbyte)subProgram.GpuProgramType);
-            GPUPlatform resolvedPlatform = ProgramTypeToPlatform(unityType);
-            Console.WriteLine($"[ShaderEnum]   Flat index={i} blob={subProgram.BlobIndex} rawType={(sbyte)subProgram.GpuProgramType} unityType={unityType} platform={resolvedPlatform} keywords=[{string.Join(",", subProgram.KeywordIndices ?? [])}]");
+            sbyte rawType = (sbyte)subProgram.GpuProgramType;
+            GPUPlatform resolvedPlatform = TryResolveProgramPlatform(version, rawType, out GPUPlatform platform)
+                ? platform
+                : GPUPlatform.Unknown;
+            Console.WriteLine($"[ShaderEnum]   Flat index={i} blob={subProgram.BlobIndex} rawType={rawType} programType={DescribeProgramType(version, rawType)} platform={resolvedPlatform} keywords=[{string.Join(",", subProgram.KeywordIndices ?? [])}]");
         }
     }
 
     private static bool MatchesPlatform(UnityVersion version, sbyte rawType, GPUPlatform platform)
     {
-        ShaderGpuProgramType ut = ToUnityProgramType(version, rawType);
-        return ProgramTypeToPlatform(ut) == platform;
+        return TryResolveProgramPlatform(version, rawType, out GPUPlatform resolved) && resolved == platform;
+    }
+
+    private static bool TryResolveProgramPlatform(UnityVersion version, sbyte rawType, out GPUPlatform platform)
+    {
+        try
+        {
+            ShaderGpuProgramType ut = ToUnityProgramType(version, rawType);
+            platform = ProgramTypeToPlatform(ut);
+            return platform != GPUPlatform.Unknown;
+        }
+        catch (NotSupportedException)
+        {
+        }
+        catch (Exception)
+        {
+        }
+
+        GPUPlatform? resolved = ResolveRawProgramPlatform?.Invoke(version, rawType);
+        platform = resolved ?? GPUPlatform.Unknown;
+        return resolved.HasValue && platform != GPUPlatform.Unknown;
+    }
+
+    private static string DescribeProgramType(UnityVersion version, int rawType)
+    {
+        if (rawType >= sbyte.MinValue && rawType <= sbyte.MaxValue)
+        {
+            sbyte raw = (sbyte)rawType;
+            try
+            {
+                return ToUnityProgramType(version, raw).ToString();
+            }
+            catch
+            {
+                if (TryResolveProgramPlatform(version, raw, out GPUPlatform platform))
+                {
+                    return $"{platform}:raw{rawType}";
+                }
+            }
+        }
+
+        return $"raw{rawType}";
     }
 
     private static ShaderGpuProgramType ToUnityProgramType(UnityVersion version, sbyte rawType)

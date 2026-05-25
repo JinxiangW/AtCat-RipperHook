@@ -1,466 +1,294 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Numerics;
 using AssetRipper.IO.Endian;
+using System.Numerics;
 
 namespace Ruri.RipperHook.Crypto;
 
+public enum VFSDecryptorVariant
+{
+    Current,
+    CB3
+}
+
 public record VFSDecryptor : CommonDecryptor
 {
-	public VFSDecryptorVariant Variant { get; set; }
+    private static readonly byte[] VFSAESSBox = { 0xA2, 0xB7, 0x25, 0x47, 0x4E, 0x82, 0x17, 0xD0, 0xA1, 0x62, 0x86, 0x66, 0xBD, 0x33, 0xA0, 0x3F, 0x91, 0x00, 0x40, 0x54, 0xD4, 0x7D, 0x94, 0xB0, 0x12, 0x58, 0x36, 0x83, 0x93, 0x9A, 0x52, 0x69, 0x08, 0x71, 0x07, 0x0A, 0x39, 0x01, 0xD7, 0x65, 0x6F, 0x27, 0x6C, 0xD8, 0x5F, 0xFC, 0xE2, 0x55, 0x95, 0xA4, 0xC2, 0x8E, 0x5B, 0x72, 0x0E, 0xD3, 0xC6, 0xD9, 0xD2, 0xDE, 0x57, 0xCE, 0xCA, 0x60, 0x19, 0x13, 0x7F, 0x84, 0xB5, 0x5A, 0x56, 0x77, 0xF4, 0x06, 0xE5, 0x2A, 0x37, 0x38, 0x9D, 0x50, 0xE0, 0x5C, 0xA7, 0xDA, 0xF5, 0x99, 0x3A, 0x0D, 0x75, 0x4A, 0x0F, 0x5E, 0xE6, 0xE8, 0x96, 0x20, 0xCF, 0x6E, 0x1B, 0x9C, 0xEF, 0xE9, 0xFD, 0x6A, 0xF6, 0x74, 0xA5, 0x48, 0x85, 0x59, 0x14, 0xFE, 0xF7, 0x9E, 0x73, 0x16, 0x8C, 0x46, 0x8A, 0x21, 0xAC, 0x26, 0x89, 0xBF, 0xBE, 0xCB, 0xFF, 0x05, 0xC9, 0xF3, 0x51, 0x4F, 0xC0, 0xDF, 0x0B, 0xAD, 0x42, 0x6D, 0x92, 0xC8, 0x28, 0x70, 0xEB, 0x0C, 0x67, 0x76, 0x09, 0xC7, 0x34, 0x30, 0x41, 0xDC, 0x45, 0x97, 0x9F, 0xAF, 0xEC, 0xA3, 0x81, 0xF9, 0xE3, 0x4B, 0x1D, 0xB1, 0x7B, 0xFB, 0xAE, 0x7E, 0xC5, 0x24, 0xEA, 0x79, 0x87, 0x8F, 0x35, 0x2D, 0x61, 0x02, 0xDB, 0x98, 0xC1, 0xF8, 0xBC, 0xD6, 0x68, 0xA9, 0xB6, 0x49, 0xFA, 0x32, 0xE1, 0xB2, 0xE4, 0x3C, 0x88, 0xAA, 0x15, 0xF1, 0x1E, 0xB3, 0x29, 0x04, 0x2C, 0xA8, 0x1A, 0x43, 0xE7, 0xCD, 0x3E, 0xBB, 0x22, 0x4C, 0x6B, 0xF0, 0x8D, 0x7A, 0x44, 0x5D, 0x3D, 0xB4, 0xCC, 0x7C, 0x2B, 0x31, 0xC4, 0x90, 0xF2, 0x1C, 0x23, 0x64, 0xB8, 0x3B, 0xD5, 0x9B, 0x10, 0xC3, 0xED, 0xA6, 0x53, 0xAB, 0x4D, 0x78, 0xD1, 0xBA, 0xEE, 0x18, 0x2E, 0x2F, 0x1F, 0xDD, 0x80, 0x8B, 0xB9, 0x03, 0x11, 0x63 };
+    private static readonly byte[] VFSAESKey = { 0x8F, 0xC2, 0x22, 0xD0, 0x91, 0xCB, 0xE6, 0x8F, 0xB1, 0xF6, 0x61, 0xCE, 0x91, 0x5C, 0xFF, 0x54 };
+    private static readonly byte[] VFSAESIV = { 0x67, 0x23, 0x94, 0xEF, 0x4C, 0xD5, 0x2F, 0x76, 0xFF, 0xDE, 0x7B, 0xB0, 0x6A, 0x86, 0x62, 0x5C };
+    private static readonly byte[] CurrentVFSAESSBox = { 0xE4, 0xB9, 0x45, 0x07, 0x92, 0x82, 0x2F, 0x43, 0xF5, 0xC9, 0x22, 0x25, 0xA9, 0x4F, 0x46, 0x6D, 0x4A, 0x71, 0x8B, 0x6C, 0x8C, 0xEB, 0xB2, 0xAC, 0xCF, 0x0C, 0x9E, 0x01, 0x38, 0x32, 0xD3, 0x93, 0x98, 0x63, 0xDA, 0x96, 0xE5, 0xC4, 0xC3, 0x6B, 0x7F, 0x26, 0x72, 0xD7, 0x97, 0xD5, 0x80, 0xBC, 0x5D, 0xBB, 0x55, 0x67, 0x10, 0x73, 0xB3, 0x8D, 0xE2, 0x35, 0x29, 0x47, 0xA8, 0x60, 0x3F, 0xC5, 0xEF, 0x68, 0xEC, 0xBE, 0xAB, 0xC6, 0xB8, 0x5C, 0xD8, 0x15, 0x09, 0x54, 0xF3, 0x7A, 0x40, 0xA2, 0x30, 0x0A, 0xDC, 0x53, 0xFA, 0xDB, 0xF1, 0x78, 0xDE, 0xAD, 0xF0, 0xB5, 0xC1, 0x81, 0x9F, 0x3E, 0x83, 0x90, 0x31, 0xF2, 0xFB, 0x21, 0x28, 0x85, 0x06, 0xCA, 0xCD, 0x1E, 0xD4, 0x3C, 0xA0, 0xC8, 0x23, 0x16, 0x6E, 0x89, 0x1D, 0xE7, 0xEE, 0x5E, 0x42, 0xBD, 0xCB, 0x13, 0x50, 0xA6, 0x4E, 0x49, 0x58, 0xDF, 0x2C, 0x84, 0x87, 0xB6, 0x91, 0x52, 0xDD, 0x19, 0xF9, 0x2B, 0x4D, 0x77, 0xBA, 0x04, 0xA5, 0x41, 0xCE, 0x94, 0x3D, 0x5F, 0xFC, 0x9B, 0x79, 0x9A, 0x7E, 0x65, 0x5A, 0xB1, 0x66, 0x34, 0x56, 0xA7, 0x1A, 0xBF, 0xEA, 0x7D, 0x27, 0x0B, 0x59, 0x2E, 0xAE, 0x14, 0x33, 0xC0, 0x51, 0x39, 0xC7, 0x3A, 0x2A, 0x9D, 0xF4, 0x7C, 0xCC, 0xD1, 0xD6, 0x70, 0x37, 0x0E, 0x75, 0x02, 0x1B, 0xE3, 0xE9, 0x48, 0x0D, 0x24, 0x2D, 0xF7, 0xD2, 0xB7, 0xAF, 0xA3, 0xA1, 0x64, 0x7B, 0xED, 0xF8, 0x05, 0x95, 0x3B, 0x74, 0xFD, 0x62, 0xD0, 0x0F, 0xFF, 0x4B, 0xAA, 0x88, 0x5B, 0x03, 0xB4, 0xE8, 0x9C, 0xB0, 0x17, 0x1C, 0x76, 0x57, 0xE0, 0xA4, 0x44, 0x20, 0xD9, 0x8E, 0x11, 0x86, 0x69, 0x36, 0xFE, 0x4C, 0x6F, 0x61, 0x6A, 0x8F, 0xE1, 0x18, 0x8A, 0x12, 0x99, 0xE6, 0x1F, 0x00, 0x08, 0xF6, 0xC2 };
+    private static readonly byte[] CurrentVFSAESKey = { 0x3A, 0xF1, 0x8C, 0x47, 0xB2, 0x09, 0x6D, 0xEE, 0x51, 0x24, 0x90, 0x7C, 0x18, 0xD3, 0xA4, 0x62 };
+    private static readonly byte[] CurrentVFSAESIV = { 0xC7, 0x12, 0x5E, 0xA9, 0x04, 0xDB, 0x33, 0x88, 0xF2, 0x0E, 0x77, 0x49, 0x65, 0xBA, 0x1C, 0x93 };
+    private const ulong CurrentVFSXorKey = 0xF19AB7752CDD0196UL;
+    private const ulong CB3VFSXorKey = 0xDEA1BEEF2AF3BA0EUL;
 
-	private static readonly byte[] VFSAESSBox = new byte[256]
-	{
-		162, 183, 37, 71, 78, 130, 23, 208, 161, 98,
-		134, 102, 189, 51, 160, 63, 145, 0, 64, 84,
-		212, 125, 148, 176, 18, 88, 54, 131, 147, 154,
-		82, 105, 8, 113, 7, 10, 57, 1, 215, 101,
-		111, 39, 108, 216, 95, 252, 226, 85, 149, 164,
-		194, 142, 91, 114, 14, 211, 198, 217, 210, 222,
-		87, 206, 202, 96, 25, 19, 127, 132, 181, 90,
-		86, 119, 244, 6, 229, 42, 55, 56, 157, 80,
-		224, 92, 167, 218, 245, 153, 58, 13, 117, 74,
-		15, 94, 230, 232, 150, 32, 207, 110, 27, 156,
-		239, 233, 253, 106, 246, 116, 165, 72, 133, 89,
-		20, 254, 247, 158, 115, 22, 140, 70, 138, 33,
-		172, 38, 137, 191, 190, 203, 255, 5, 201, 243,
-		81, 79, 192, 223, 11, 173, 66, 109, 146, 200,
-		40, 112, 235, 12, 103, 118, 9, 199, 52, 48,
-		65, 220, 69, 151, 159, 175, 236, 163, 129, 249,
-		227, 75, 29, 177, 123, 251, 174, 126, 197, 36,
-		234, 121, 135, 143, 53, 45, 97, 2, 219, 152,
-		193, 248, 188, 214, 104, 169, 182, 73, 250, 50,
-		225, 178, 228, 60, 136, 170, 21, 241, 30, 179,
-		41, 4, 44, 168, 26, 67, 231, 205, 62, 187,
-		34, 76, 107, 240, 141, 122, 68, 93, 61, 180,
-		204, 124, 43, 49, 196, 144, 242, 28, 35, 100,
-		184, 59, 213, 155, 16, 195, 237, 166, 83, 171,
-		77, 120, 209, 186, 238, 24, 46, 47, 31, 221,
-		128, 139, 185, 3, 17, 99
-	};
+    public VFSDecryptorVariant Variant { get; set; }
 
-	private static readonly byte[] VFSAESKey = new byte[16]
-	{
-		143, 194, 34, 208, 145, 203, 230, 143, 177, 246,
-		97, 206, 145, 92, 255, 84
-	};
+    public VFSDecryptor(VFSDecryptorVariant variant = VFSDecryptorVariant.CB3)
+    {
+        Variant = variant;
+    }
 
-	private static readonly byte[] VFSAESIV = new byte[16]
-	{
-		103, 35, 148, 239, 76, 213, 47, 118, 255, 222,
-		123, 176, 106, 134, 98, 92
-	};
+    public override Span<byte> Decrypt(Span<byte> buffer)
+        => Decrypt(buffer, Variant);
 
-	private static readonly byte[] CurrentVFSAESSBox = new byte[256]
-	{
-		228, 185, 69, 7, 146, 130, 47, 67, 245, 201,
-		34, 37, 169, 79, 70, 109, 74, 113, 139, 108,
-		140, 235, 178, 172, 207, 12, 158, 1, 56, 50,
-		211, 147, 152, 99, 218, 150, 229, 196, 195, 107,
-		127, 38, 114, 215, 151, 213, 128, 188, 93, 187,
-		85, 103, 16, 115, 179, 141, 226, 53, 41, 71,
-		168, 96, 63, 197, 239, 104, 236, 190, 171, 198,
-		184, 92, 216, 21, 9, 84, 243, 122, 64, 162,
-		48, 10, 220, 83, 250, 219, 241, 120, 222, 173,
-		240, 181, 193, 129, 159, 62, 131, 144, 49, 242,
-		251, 33, 40, 133, 6, 202, 205, 30, 212, 60,
-		160, 200, 35, 22, 110, 137, 29, 231, 238, 94,
-		66, 189, 203, 19, 80, 166, 78, 73, 88, 223,
-		44, 132, 135, 182, 145, 82, 221, 25, 249, 43,
-		77, 119, 186, 4, 165, 65, 206, 148, 61, 95,
-		252, 155, 121, 154, 126, 101, 90, 177, 102, 52,
-		86, 167, 26, 191, 234, 125, 39, 11, 89, 46,
-		174, 20, 51, 192, 81, 57, 199, 58, 42, 157,
-		244, 124, 204, 209, 214, 112, 55, 14, 117, 2,
-		27, 227, 233, 72, 13, 36, 45, 247, 210, 183,
-		175, 163, 161, 100, 123, 237, 248, 5, 149, 59,
-		116, 253, 98, 208, 15, 255, 75, 170, 136, 91,
-		3, 180, 232, 156, 176, 23, 28, 118, 87, 224,
-		164, 68, 32, 217, 142, 17, 134, 105, 54, 254,
-		76, 111, 97, 106, 143, 225, 24, 138, 18, 153,
-		230, 31, 0, 8, 246, 194
-	};
+    public Span<byte> Decrypt(Span<byte> buffer, VFSDecryptorVariant variant)
+    {
+        (byte[] sBox, byte[] key, byte[] iv, ulong xorKey) = GetKeys(variant);
 
-	private static readonly byte[] CurrentVFSAESKey = new byte[16]
-	{
-		58, 241, 140, 71, 178, 9, 109, 238, 81, 36,
-		144, 124, 24, 211, 164, 98
-	};
+        // VFS Stride Logic
+        if (buffer.Length <= 256)
+        {
+            var dec = AESDecrypt(buffer.ToArray(), sBox, key, iv, xorKey);
+            dec.CopyTo(buffer);
+        }
+        else
+        {
+            var numBlocksFloor = buffer.Length / 16;
+            var step = (int)(256 / numBlocksFloor);
 
-	private static readonly byte[] CurrentVFSAESIV = new byte[16]
-	{
-		199, 18, 94, 169, 4, 219, 51, 136, 242, 14,
-		119, 73, 101, 186, 28, 147
-	};
+            if (numBlocksFloor > 256)
+                step = 1;
 
-	private const ulong CurrentVFSXorKey = 17409429023445811606uL;
+            Span<byte> decBuffer = new byte[256];
 
-	private const ulong CB3VFSXorKey = 16042313282097494542uL;
+            // Sample bytes
+            for (int i = 0; i < Math.Min(numBlocksFloor, 256); i++)
+                buffer.Slice(i * 16, step).CopyTo(decBuffer.Slice(i * step, step));
 
-	public VFSDecryptor(VFSDecryptorVariant variant = VFSDecryptorVariant.CB3)
-	{
-		Variant = variant;
-	}
+            // Decrypt sampled buffer
+            var decrypted = AESDecrypt(decBuffer.ToArray(), sBox, key, iv, xorKey);
 
-	public override Span<byte> Decrypt(Span<byte> buffer)
-	{
-		return Decrypt(buffer, Variant);
-	}
+            // Write back bytes
+            for (int i = 0; i < Math.Min(numBlocksFloor, 256); i++)
+                decrypted.AsSpan(i * step, step).CopyTo(buffer.Slice(i * 16, step));
+        }
 
-	public Span<byte> Decrypt(Span<byte> buffer, VFSDecryptorVariant variant)
-	{
-		var (sBox, key, iv, xorKey) = GetKeys(variant);
-		if (buffer.Length <= 256)
-		{
-			byte[] source = AESDecrypt(buffer.ToArray(), sBox, key, iv, xorKey);
-			source.CopyTo(buffer);
-		}
-		else
-		{
-			int num = buffer.Length / 16;
-			int num2 = 256 / num;
-			if (num > 256)
-			{
-				num2 = 1;
-			}
-			Span<byte> span = new byte[256];
-			for (int i = 0; i < Math.Min(num, 256); i++)
-			{
-				buffer.Slice(i * 16, num2).CopyTo(span.Slice(i * num2, num2));
-			}
-			byte[] array = AESDecrypt(span.ToArray(), sBox, key, iv, xorKey);
-			for (int j = 0; j < Math.Min(num, 256); j++)
-			{
-				array.AsSpan(j * num2, num2).CopyTo(buffer.Slice(j * 16, num2));
-			}
-		}
-		return buffer;
-	}
+        return buffer;
+    }
 
-	private static (byte[] SBox, byte[] Key, byte[] IV, ulong XorKey) GetKeys(VFSDecryptorVariant variant)
-	{
-		if (variant != VFSDecryptorVariant.Current)
-		{
-			return (SBox: VFSAESSBox, Key: VFSAESKey, IV: VFSAESIV, XorKey: 16042313282097494542uL);
-		}
-		return (SBox: CurrentVFSAESSBox, Key: CurrentVFSAESKey, IV: CurrentVFSAESIV, XorKey: 17409429023445811606uL);
-	}
+    private static (byte[] SBox, byte[] Key, byte[] IV, ulong XorKey) GetKeys(VFSDecryptorVariant variant)
+        => variant == VFSDecryptorVariant.Current
+            ? (CurrentVFSAESSBox, CurrentVFSAESKey, CurrentVFSAESIV, CurrentVFSXorKey)
+            : (VFSAESSBox, VFSAESKey, VFSAESIV, CB3VFSXorKey);
 
-	public static bool IsValidHeader(EndianReader reader)
-	{
-		VFSDecryptorVariant variant;
-		return IsValidHeader(reader, out variant);
-	}
+    public static bool IsValidHeader(EndianReader reader)
+        => IsValidHeader(reader, out _);
 
-	public static bool IsValidHeader(EndianReader reader, out VFSDecryptorVariant variant)
-	{
-		variant = VFSDecryptorVariant.CB3;
-		long position = reader.BaseStream.Position;
-		EndianType endianType = reader.EndianType;
-		try
-		{
-			reader.EndianType = EndianType.BigEndian;
-			if (reader.BaseStream.Length - position < 8)
-			{
-				return false;
-			}
-			uint num = reader.ReadUInt32();
-			uint num2 = reader.ReadUInt32();
-			uint num3 = (4 * (num ^ 0x4A92F0CD)) & 0xFFFF0000u;
-			uint num4 = BitOperations.RotateRight(num ^ 0x4A92F0CD, 14);
-			uint num5 = num3 ^ num4 ^ 0xD8B1E637u;
-			if (num2 == num5)
-			{
-				variant = VFSDecryptorVariant.Current;
-				return true;
-			}
-			uint num6 = BitOperations.RotateRight(num ^ 0x91A64750u, 3);
-			uint num7 = (num6 << 16) ^ 0xD5F9BECCu;
-			uint num8 = (num6 ^ num7) & 0xFFFFFFFFu;
-			if (num2 == num8)
-			{
-				variant = VFSDecryptorVariant.CB3;
-				return true;
-			}
-			return false;
-		}
-		catch
-		{
-			return false;
-		}
-		finally
-		{
-			reader.BaseStream.Position = position;
-			reader.EndianType = endianType;
-		}
-	}
+    public static bool IsValidHeader(EndianReader reader, out VFSDecryptorVariant variant)
+    {
+        variant = VFSDecryptorVariant.CB3;
+        var pos = reader.BaseStream.Position;
+        var originalEndian = reader.EndianType;
 
-	public static uint BitConcat(int bits, params uint[] ns)
-	{
-		uint num = ((bits == 32) ? uint.MaxValue : ((uint)((1 << bits) - 1)));
-		uint num2 = 0u;
-		int num3 = ns.Length;
-		for (int i = 0; i < num3; i++)
-		{
-			num2 |= (ns[i] & num) << bits * (num3 - i - 1);
-		}
-		return num2;
-	}
+        try
+        {
+            reader.EndianType = EndianType.BigEndian;
+            if (reader.BaseStream.Length - pos < 8) return false;
 
-	public static ulong BitConcat64(int bits, params ulong[] ns)
-	{
-		ulong num = (ulong)((bits == 64) ? (-1) : ((1L << bits) - 1));
-		ulong num2 = 0uL;
-		int num3 = ns.Length;
-		for (int i = 0; i < num3; i++)
-		{
-			num2 |= (ns[i] & num) << bits * (num3 - i - 1);
-		}
-		return num2;
-	}
+            var a = reader.ReadUInt32();
+            var b = reader.ReadUInt32();
 
-	public static ushort RotateLeft16(ushort value, int count)
-	{
-		return (ushort)((value << count) | (value >> 16 - count));
-	}
+            uint currentC1 = (4 * (a ^ 0x4A92F0CD)) & 0xFFFF0000u;
+            uint currentC2 = BitOperations.RotateRight(a ^ 0x4A92F0CD, 14);
+            uint currentC3 = currentC1 ^ currentC2 ^ 0xD8B1E637u;
+            if (b == currentC3)
+            {
+                variant = VFSDecryptorVariant.Current;
+                return true;
+            }
 
-	public static ulong RotateLeft64(ulong value, int count)
-	{
-		return (value << count) | (value >> 64 - count);
-	}
+            var c1 = BitOperations.RotateRight(a ^ 0x91A64750, 3);
+            var c2 = (c1 << 16) ^ 0xD5F9BECC;
+            var c3 = (c1 ^ c2) & 0xFFFFFFFF;
 
-	public static ulong RotateRight64(ulong value, int count)
-	{
-		return (value >> count) | (value << 64 - count);
-	}
+            if (b == c3)
+            {
+                variant = VFSDecryptorVariant.CB3;
+                return true;
+            }
 
-	private static byte[] AESDecrypt(byte[] ciphertext, byte[] sBox, byte[] key, byte[] iv, ulong xorKey)
-	{
-		List<byte[]> list = new List<byte[]>();
-		byte[] plaintext = iv.ToArray();
-		foreach (byte[] item in SplitBlocks(ciphertext))
-		{
-			byte[] array = EncryptBlock(plaintext, sBox, key);
-			byte[] array2 = new byte[item.Length];
-			for (int i = 0; i < item.Length; i++)
-			{
-				array2[i] = (byte)(item[i] ^ array[i]);
-			}
-			list.Add(array2);
-			byte[] array3 = new byte[16];
-			int num = 0;
-			for (int j = 0; j < 16; j++)
-			{
-				ulong num2 = xorKey >> (num & 0x38);
-				byte b = (byte)(array[j] ^ (31 * j) ^ (byte)num2);
-				num += 8;
-				b = (byte)(((b >> 5) | (8 * b)) & 0xFF);
-				b = sBox[b];
-				array3[j] = b;
-			}
-			plaintext = array3;
-		}
-		return list.SelectMany((byte[] result) => result).ToArray();
-	}
+            return false;
+        }
+        catch
+        {
+            return false;
+        }
+        finally
+        {
+            reader.BaseStream.Position = pos;
+            reader.EndianType = originalEndian;
+        }
+    }
 
-	private static byte[] EncryptBlock(byte[] plaintext, byte[] sBox, byte[] key)
-	{
-		List<byte[,]> list = ExpandKey(key, sBox);
-		int num = 10;
-		List<byte[]> list2 = BytesToMatrix(plaintext);
-		AddRoundKey(list2, list[0]);
-		for (int i = 1; i < num; i++)
-		{
-			SubBytes(list2, sBox);
-			ShiftRows(list2);
-			MixColumns(list2);
-			AddRoundKey(list2, list[i]);
-		}
-		SubBytes(list2, sBox);
-		ShiftRows(list2);
-		AddRoundKey(list2, list[list.Count - 1]);
-		return MatrixToBytes(list2);
-	}
+    public static uint BitConcat(int bits, params uint[] ns)
+    {
+        uint mask = (bits == 32) ? 0xFFFFFFFFu : ((1u << bits) - 1u);
+        uint res = 0;
+        int count = ns.Length;
+        for (int i = 0; i < count; i++)
+            res |= (ns[i] & mask) << (bits * (count - i - 1));
+        return res;
+    }
 
-	private static IEnumerable<byte[]> SplitBlocks(byte[] msg, int blockSize = 16)
-	{
-		for (int i = 0; i < msg.Length; i += blockSize)
-		{
-			yield return msg.Skip(i).Take(blockSize).ToArray();
-		}
-	}
+    public static ulong BitConcat64(int bits, params ulong[] ns)
+    {
+        ulong mask = (bits == 64) ? ulong.MaxValue : ((1UL << bits) - 1UL);
+        ulong res = 0;
+        int count = ns.Length;
+        for (int i = 0; i < count; i++)
+            res |= (ns[i] & mask) << (bits * (count - i - 1));
+        return res;
+    }
 
-	private static void SubBytes(List<byte[]> s, byte[] sBox)
-	{
-		for (int i = 0; i < 4; i++)
-		{
-			for (int j = 0; j < 4; j++)
-			{
-				s[i][j] = sBox[s[i][j]];
-			}
-		}
-	}
+    public static ushort RotateLeft16(ushort value, int count) => (ushort)((value << count) | (value >> (16 - count)));
+    public static ulong RotateLeft64(ulong value, int count) => (value << count) | (value >> (64 - count));
+    public static ulong RotateRight64(ulong value, int count) => (value >> count) | (value << (64 - count));
 
-	private static void ShiftRows(List<byte[]> s)
-	{
-		ref byte reference = ref s[0][1];
-		ref byte reference2 = ref s[1][1];
-		ref byte reference3 = ref s[2][1];
-		ref byte reference4 = ref s[3][1];
-		byte b = s[1][1];
-		byte b2 = s[2][1];
-		byte b3 = s[3][1];
-		byte b4 = s[0][1];
-		reference = b;
-		reference2 = b2;
-		reference3 = b3;
-		reference4 = b4;
-		reference3 = ref s[0][2];
-		reference2 = ref s[1][2];
-		reference = ref s[2][2];
-		ref byte reference5 = ref s[3][2];
-		b4 = s[2][2];
-		b3 = s[3][2];
-		b2 = s[0][2];
-		b = s[1][2];
-		reference3 = b4;
-		reference2 = b3;
-		reference = b2;
-		reference5 = b;
-		reference = ref s[0][3];
-		reference2 = ref s[1][3];
-		reference3 = ref s[2][3];
-		ref byte reference6 = ref s[3][3];
-		b = s[3][3];
-		b2 = s[0][3];
-		b3 = s[1][3];
-		b4 = s[2][3];
-		reference = b;
-		reference2 = b2;
-		reference3 = b3;
-		reference6 = b4;
-	}
+    #region Internal AES Implementation
+    private static byte[] AESDecrypt(byte[] ciphertext, byte[] sBox, byte[] key, byte[] iv, ulong xorKey)
+    {
+        List<byte[]> blocks = new();
+        byte[] previous = iv.ToArray();
+        foreach (var ct in SplitBlocks(ciphertext))
+        {
+            byte[] block = EncryptBlock(previous, sBox, key);
+            byte[] pt = new byte[ct.Length];
+            for (int i = 0; i < ct.Length; i++) pt[i] = (byte)(ct[i] ^ block[i]);
+            blocks.Add(pt);
+            byte[] nextIv = new byte[16];
+            int count = 0;
+            for (int i = 0; i < 16; i++)
+            {
+                ulong shiftSrc = xorKey >> (count & 0x38);
+                byte temp = (byte)(block[i] ^ (31 * i) ^ (byte)shiftSrc);
+                count += 8;
+                temp = (byte)((((temp >> 5) | (8 * temp)) & 0xFF));
+                temp = sBox[temp];
+                nextIv[i] = temp;
+            }
+            previous = nextIv;
+        }
+        return blocks.SelectMany(b => b).ToArray();
+    }
 
-	private static void AddRoundKey(List<byte[]> s, byte[,] k)
-	{
-		for (int i = 0; i < 4; i++)
-		{
-			for (int j = 0; j < 4; j++)
-			{
-				s[i][j] ^= k[i, j];
-			}
-		}
-	}
+    private static byte[] EncryptBlock(byte[] plaintext, byte[] sBox, byte[] key)
+    {
+        List<byte[,]> keyMats = ExpandKey(key, sBox);
+        int nRounds = 10;
+        var state = BytesToMatrix(plaintext);
+        AddRoundKey(state, keyMats[0]);
+        for (int r = 1; r < nRounds; r++)
+        {
+            SubBytes(state, sBox);
+            ShiftRows(state);
+            MixColumns(state);
+            AddRoundKey(state, keyMats[r]);
+        }
+        SubBytes(state, sBox);
+        ShiftRows(state);
+        AddRoundKey(state, keyMats[^1]);
+        return MatrixToBytes(state);
+    }
 
-	private static byte XTime(byte a)
-	{
-		return (byte)(((a & 0x80) != 0) ? (((a << 1) ^ 0x1B) & 0xFF) : (a << 1));
-	}
+    private static IEnumerable<byte[]> SplitBlocks(byte[] msg, int blockSize = 16)
+    {
+        for (int i = 0; i < msg.Length; i += blockSize)
+            yield return msg.Skip(i).Take(blockSize).ToArray();
+    }
 
-	private static void MixSingleColumn(byte[] a)
-	{
-		byte b = (byte)(a[0] ^ a[1] ^ a[2] ^ a[3]);
-		byte b2 = a[0];
-		a[0] ^= (byte)(b ^ XTime((byte)(a[0] ^ a[1])));
-		a[1] ^= (byte)(b ^ XTime((byte)(a[1] ^ a[2])));
-		a[2] ^= (byte)(b ^ XTime((byte)(a[2] ^ a[3])));
-		a[3] ^= (byte)(b ^ XTime((byte)(a[3] ^ b2)));
-	}
+    private static void SubBytes(List<byte[]> s, byte[] sBox)
+    {
+        for (int i = 0; i < 4; i++)
+            for (int j = 0; j < 4; j++)
+                s[i][j] = sBox[s[i][j]];
+    }
 
-	private static void MixColumns(List<byte[]> s)
-	{
-		for (int i = 0; i < 4; i++)
-		{
-			MixSingleColumn(s[i]);
-		}
-	}
+    private static void ShiftRows(List<byte[]> s)
+    {
+        (s[0][1], s[1][1], s[2][1], s[3][1]) = (s[1][1], s[2][1], s[3][1], s[0][1]);
+        (s[0][2], s[1][2], s[2][2], s[3][2]) = (s[2][2], s[3][2], s[0][2], s[1][2]);
+        (s[0][3], s[1][3], s[2][3], s[3][3]) = (s[3][3], s[0][3], s[1][3], s[2][3]);
+    }
 
-	private static List<byte[,]> ExpandKey(byte[] masterKey, byte[] sBox)
-	{
-		int num = 10;
-		List<byte[]> list = BytesToMatrix(masterKey);
-		int num2 = masterKey.Length / 4;
-		int num3 = 1;
-		byte[] array = new byte[32]
-		{
-			0, 1, 2, 4, 8, 16, 32, 64, 128, 27,
-			54, 108, 216, 171, 77, 154, 47, 94, 188, 99,
-			198, 151, 53, 106, 212, 179, 125, 250, 239, 197,
-			145, 57
-		};
-		while (list.Count < (num + 1) * 4)
-		{
-			byte[] array2 = list[list.Count - 1].ToArray();
-			if (list.Count % num2 == 0)
-			{
-				byte b = array2[0];
-				Array.Copy(array2, 1, array2, 0, array2.Length - 1);
-				array2[^1] = b;
-				for (int i = 0; i < 4; i++)
-				{
-					array2[i] = sBox[array2[i]];
-				}
-				array2[0] ^= array[num3];
-				num3++;
-			}
-			else if (masterKey.Length == 32 && list.Count % num2 == 4)
-			{
-				for (int j = 0; j < 4; j++)
-				{
-					array2[j] = sBox[array2[j]];
-				}
-			}
-			byte[] array3 = list[list.Count - num2];
-			for (int k = 0; k < 4; k++)
-			{
-				array2[k] ^= array3[k];
-			}
-			list.Add(array2);
-		}
-		List<byte[,]> list2 = new List<byte[,]>();
-		for (int l = 0; l < list.Count / 4; l++)
-		{
-			byte[,] array4 = new byte[4, 4];
-			for (int m = 0; m < 4; m++)
-			{
-				for (int n = 0; n < 4; n++)
-				{
-					array4[m, n] = list[l * 4 + m][n];
-				}
-			}
-			list2.Add(array4);
-		}
-		return list2;
-	}
+    private static void AddRoundKey(List<byte[]> s, byte[,] k)
+    {
+        for (int i = 0; i < 4; i++)
+            for (int j = 0; j < 4; j++)
+                s[i][j] ^= k[i, j];
+    }
 
-	private static List<byte[]> BytesToMatrix(byte[] text)
-	{
-		List<byte[]> list = new List<byte[]>();
-		for (int i = 0; i < text.Length; i += 4)
-		{
-			list.Add(new byte[4]
-			{
-				text[i],
-				text[i + 1],
-				text[i + 2],
-				text[i + 3]
-			});
-		}
-		return list;
-	}
+    private static byte XTime(byte a) => (byte)(((a & 0x80) != 0) ? ((a << 1) ^ 0x1B) & 0xFF : (a << 1));
 
-	private static byte[] MatrixToBytes(List<byte[]> m)
-	{
-		byte[] array = new byte[16];
-		int num = 0;
-		for (int i = 0; i < 4; i++)
-		{
-			for (int j = 0; j < 4; j++)
-			{
-				array[num++] = m[i][j];
-			}
-		}
-		return array;
-	}
+    private static void MixSingleColumn(byte[] a)
+    {
+        byte t = (byte)(a[0] ^ a[1] ^ a[2] ^ a[3]);
+        byte u = a[0];
+        a[0] ^= (byte)(t ^ XTime((byte)(a[0] ^ a[1])));
+        a[1] ^= (byte)(t ^ XTime((byte)(a[1] ^ a[2])));
+        a[2] ^= (byte)(t ^ XTime((byte)(a[2] ^ a[3])));
+        a[3] ^= (byte)(t ^ XTime((byte)(a[3] ^ u)));
+    }
+
+    private static void MixColumns(List<byte[]> s)
+    {
+        for (int i = 0; i < 4; i++)
+            MixSingleColumn(s[i]);
+    }
+
+    private static List<byte[,]> ExpandKey(byte[] masterKey, byte[] sBox)
+    {
+        int nRounds = 10;
+        List<byte[]> keyCols = BytesToMatrix(masterKey);
+        int iterationSize = masterKey.Length / 4;
+        int i = 1;
+        byte[] rCon = { 0x00, 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1B, 0x36, 0x6C, 0xD8, 0xAB, 0x4D, 0x9A, 0x2F, 0x5E, 0xBC, 0x63, 0xC6, 0x97, 0x35, 0x6A, 0xD4, 0xB3, 0x7D, 0xFA, 0xEF, 0xC5, 0x91, 0x39 };
+        while (keyCols.Count < (nRounds + 1) * 4)
+        {
+            byte[] word = keyCols[^1].ToArray();
+            if (keyCols.Count % iterationSize == 0)
+            {
+                var first = word[0];
+                Array.Copy(word, 1, word, 0, word.Length - 1);
+                word[^1] = first;
+                for (int k = 0; k < 4; k++) word[k] = sBox[word[k]];
+                word[0] ^= rCon[i];
+                i++;
+            }
+            else if (masterKey.Length == 32 && keyCols.Count % iterationSize == 4)
+            {
+                for (int k = 0; k < 4; k++) word[k] = sBox[word[k]];
+            }
+            byte[] prev = keyCols[keyCols.Count - iterationSize];
+            for (int k = 0; k < 4; k++) word[k] ^= prev[k];
+            keyCols.Add(word);
+        }
+        var res = new List<byte[,]>();
+        for (int x = 0; x < keyCols.Count / 4; x++)
+        {
+            byte[,] m = new byte[4, 4];
+            for (int c = 0; c < 4; c++)
+                for (int r = 0; r < 4; r++)
+                    m[c, r] = keyCols[x * 4 + c][r];
+            res.Add(m);
+        }
+        return res;
+    }
+
+    private static List<byte[]> BytesToMatrix(byte[] text)
+    {
+        var rows = new List<byte[]>();
+        for (int i = 0; i < text.Length; i += 4)
+            rows.Add(new byte[] { text[i], text[i + 1], text[i + 2], text[i + 3] });
+        return rows;
+    }
+
+    private static byte[] MatrixToBytes(List<byte[]> m)
+    {
+        byte[] r = new byte[16];
+        int idx = 0;
+        for (int i = 0; i < 4; i++)
+            for (int j = 0; j < 4; j++)
+                r[idx++] = m[i][j];
+        return r;
+    }
+    #endregion
 }

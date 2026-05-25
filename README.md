@@ -79,6 +79,25 @@ Ruri-RipperHook 的设计核心是“通用切面 + 场景特化模块”：
 - 某些 Hook 偶发失效时，通常与增量 Hot Reload 残留状态有关，重新触发一次编译即可恢复。
 - 这是偏工程化的扩展框架，不是面向完全零基础用户的一键工具。更适合已经理解上游工具链、数据结构和导出目标的人继续扩展。
 
+## 当前解包 / 导出工作流
+
+当前 CLI 已包含面向复杂 Unity 数据集的定向导出流程：先建立 VFS 逻辑文件索引，再探测 `.ab` 的 CAB / collection metadata，按 seed token 与材质依赖闭包定位需要加载的逻辑 bundle，最后只 materialize 目标闭包并交给导出管线处理。
+
+完整运行手册见 [`docs/endfield-export-workflow.md`](docs/endfield-export-workflow.md)。该文档记录了当前 Endfield 聚焦导出的代码入口、命令顺序、输出产物、验收口径和常见排查点。
+
+常用入口：
+
+```powershell
+dotnet build .\Ruri-RipperHook.slnx -c Release
+
+& .\Source\Ruri.RipperHook.CLI\bin\Release\net10.0-windows\Ruri.RipperHook.CLI.exe `
+  --list-hooks
+```
+
+相关 CLI 选项包括 `--build-vfs-index`、`--probe-vfs-metadata`、`--scan-vfs-terms`、`--vfs-deps`、`--load-logical`、`--resolve-vfs-deps` 和 `--repair-unity-materials`。长时间测试输出统一放在仓库根目录的 `TestLoopOutput/`，该目录只作为本地运行产物使用。
+
+当前材质验收口径是“真实依赖优先”：导出的 `.mat` 应尽量引用真实导出的 Shader 与 Texture2D；fallback shader 只作为临时诊断，不计入最终成功。无法解析的 shader / texture 引用需要进入缺口报告。
+
 ## Feature
 
 - AssemblyDumper support
@@ -88,6 +107,7 @@ Ruri-RipperHook 的设计核心是“通用切面 + 场景特化模块”：
 - FModel / UE shader export and decompile workflow
 - Long-term Unity data unification pipeline
 - Extensible hook pipeline for project-specific data handling
+- VFS / CAB dependency indexing for focused Unity asset exports
 
 ## Todo
 
