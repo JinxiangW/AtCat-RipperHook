@@ -698,9 +698,10 @@ public sealed class ShaderRuriDecompileExporter : ShaderExporterBase
 
             // Body: the decompiled source (TrimEnd'd) or a stub line.
             ReadOnlyMemory<char> srcMem = default;
-            if (r is { Success: true, SourceCode: { Length: > 0 } srcText })
+            if (r is { Success: true, SourceCode: { Length: > 0 } })
             {
-                srcMem = srcText.AsMemory().TrimEnd();
+                string processed = GetReadableSource(r);
+                srcMem = processed.AsMemory().TrimEnd();
             }
             trimmedSources[i] = srcMem;
 
@@ -832,6 +833,20 @@ public sealed class ShaderRuriDecompileExporter : ShaderExporterBase
         if (value < 100000000) return 8;
         if (value < 1000000000) return 9;
         return 10;
+    }
+
+    private static string GetReadableSource(DecompileResult result)
+    {
+        string source = result.SourceCode ?? string.Empty;
+        if (source.Length == 0)
+        {
+            return source;
+        }
+
+        return ShaderSourcePostProcessor.Apply(
+            source,
+            new SourcePostProcessContext(result.SourceLanguage, null, ShaderSourceTarget.Generic),
+            ShaderSourceRewriteFlags.HlslReadability).Text;
     }
 
     /// <summary>

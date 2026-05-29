@@ -193,7 +193,8 @@ internal static class Pass200_EmitShaderLabFiles
 
     // Per-variant HLSL body file. Header carries every identifying datum so the
     // file stands alone away from the .shader distributor. Body is the raw
-    // decompiled SourceCode (or the GLSL fallback / failure note).
+    // decompiled SourceCode after explicit readability post-process (or the
+    // GLSL fallback / failure note).
     private static string WriteVariantHlslFile(UeShaderLabContainerMetadata metadata, UeShaderLabProgramData program, string keyword)
     {
         StringBuilder sb = new();
@@ -214,7 +215,7 @@ internal static class Pass200_EmitShaderLabFiles
 
         if (program.Success && !string.IsNullOrWhiteSpace(program.SourceCode))
         {
-            string source = RenameAnonymousGlobals(program.SourceCode!, program.ShaderTypeName, program.ShaderHash, program.SymbolMetadata);
+            string source = PrepareProgramSource(program, adaptForUnity: false);
             foreach (string line in SplitLines(source))
             {
                 sb.AppendLine(line);
@@ -531,8 +532,7 @@ internal static class Pass200_EmitShaderLabFiles
 
         if (program.Success && !string.IsNullOrWhiteSpace(program.SourceCode))
         {
-            string renamed = RenameAnonymousGlobals(program.SourceCode!, program.ShaderTypeName, program.ShaderHash, program.SymbolMetadata);
-            string adapted = AdaptHlslForUnity(renamed);
+            string adapted = PrepareProgramSource(program, adaptForUnity: true);
             foreach (string line in SplitLines(adapted))
             {
                 sb.Append("            ");
@@ -550,6 +550,16 @@ internal static class Pass200_EmitShaderLabFiles
                 sb.AppendLine(line);
             }
         }
+    }
+
+    private static string PrepareProgramSource(UeShaderLabProgramData program, bool adaptForUnity)
+    {
+        string readable = ShaderSourcePostProcessor.Apply(
+            program.SourceCode!,
+            new SourcePostProcessContext(program.SourceLanguage, program.Stage, ShaderSourceTarget.UeShaderLab),
+            ShaderSourceRewriteFlags.HlslReadability).Text;
+        string renamed = RenameAnonymousGlobals(readable, program.ShaderTypeName, program.ShaderHash, program.SymbolMetadata);
+        return adaptForUnity ? AdaptHlslForUnity(renamed) : renamed;
     }
 
     private static string? GetShaderStageMacro(string stage) => stage switch
