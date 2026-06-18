@@ -9,11 +9,12 @@
 		<AssemblyName>Ruri.RipperHook.CLI</AssemblyName>
 		<RootNamespace>Ruri.RipperHook.CLI</RootNamespace>
 		<TargetFramework>net10.0-windows</TargetFramework>
+		<CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
 		<Nullable>enable</Nullable>
 	</PropertyGroup>
 
 	<ItemGroup>
-		<PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.1" />
+		<PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.0" />
 		<PackageReference Include="MonoMod.RuntimeDetour" Version="25.3.3" />
 		<PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
 		<PackageReference Include="System.CommandLine" Version="2.0.0-beta4.22272.1" />
@@ -22,5 +23,19 @@
 	<ItemGroup>
 		<ProjectReference Include="..\Ruri.RipperHook\Ruri.RipperHook.csproj" />
 	</ItemGroup>
+
+	<Target Name="CopySqliteRuntimeAssets" AfterTargets="CopyFilesToOutputDirectory">
+		<PropertyGroup>
+			<NuGetPackageRoot Condition="'$(NuGetPackageRoot)' == ''">$(USERPROFILE)\.nuget\packages\</NuGetPackageRoot>
+		</PropertyGroup>
+		<ItemGroup>
+			<_SqliteRuntimeAsset Include="$(NuGetPackageRoot)microsoft.data.sqlite.core\9.0.0\lib\net8.0\Microsoft.Data.Sqlite.dll" />
+			<_SqliteRuntimeAsset Include="$(NuGetPackageRoot)sqlitepclraw.core\2.1.10\lib\netstandard2.0\SQLitePCLRaw.core.dll" />
+			<_SqliteRuntimeAsset Include="$(NuGetPackageRoot)sqlitepclraw.bundle_e_sqlite3\2.1.10\lib\netstandard2.0\SQLitePCLRaw.batteries_v2.dll" />
+			<_SqliteRuntimeAsset Include="$(NuGetPackageRoot)sqlitepclraw.provider.e_sqlite3\2.1.10\lib\net6.0-windows7.0\SQLitePCLRaw.provider.e_sqlite3.dll" />
+			<_SqliteRuntimeAsset Include="$(NuGetPackageRoot)sqlitepclraw.lib.e_sqlite3\2.1.10\runtimes\win-x64\native\e_sqlite3.dll" />
+		</ItemGroup>
+		<Copy SourceFiles="@(_SqliteRuntimeAsset)" DestinationFiles="@(_SqliteRuntimeAsset->'$(MSBuildProjectDirectory)\$(OutputPath)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+	</Target>
 
 </Project>

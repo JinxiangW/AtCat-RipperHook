@@ -20,7 +20,6 @@ using AssetRipper.SourceGenerated.Subclasses.SerializedShaderRTBlendState;
 using AssetRipper.SourceGenerated.Subclasses.SerializedShaderState;
 using AssetRipper.SourceGenerated.Subclasses.SerializedSubProgram;
 using Ruri.RipperHook;
-using Ruri.SourceGenerated.NativeEnums.Global;
 using Ruri.ShaderTools;
 
 namespace Ruri.RipperHook.AR;
@@ -34,6 +33,12 @@ public sealed class ShaderRuriDecompileExporter : ShaderExporterBase
     /// reorder lookups, etc. The generic exporter must stay free of game-specific branches.
     /// </summary>
     public static Action<SerializedProgramData, ShaderSubProgram, ShaderReadContext>? PostProcessSymbols;
+
+    /// <summary>
+    /// Optional callback for game-specific Unity forks whose raw shader program type values are
+    /// not represented by AssetRipper's upstream enum tables.
+    /// </summary>
+    public static Func<ShaderReadContext, sbyte, GPUPlatform?>? ResolveRawProgramPlatform;
 
     /// <summary>
     /// Live-read from the persisted ShaderDecompilerSettings snapshot
@@ -199,7 +204,8 @@ public sealed class ShaderRuriDecompileExporter : ShaderExporterBase
 
         LogProgramEnumeration(shader.Name, stage, program, shader.Collection.Version);
 
-        foreach (ShaderReadSource source in EnumerateProgramSources(program, shader.Collection.Version, platform))
+        ShaderReadContext context = new(shader.Name, subShaderIndex, passIndex, 0, shader.Collection.Version);
+        foreach (ShaderReadSource source in EnumerateProgramSources(program, shader.Collection.Version, platform, context))
         {
             ShaderSubProgram subProgram = source.ParameterBlobIndex is uint paramBlobIndex
                 ? blob.GetSubProgram(source.BlobIndex, paramBlobIndex)
@@ -233,7 +239,7 @@ public sealed class ShaderRuriDecompileExporter : ShaderExporterBase
         }
     }
 
-    private static IEnumerable<ShaderReadSource> EnumerateProgramSources(ISerializedProgram program, UnityVersion version, GPUPlatform platform)
+    private static IEnumerable<ShaderReadSource> EnumerateProgramSources(ISerializedProgram program, UnityVersion version, GPUPlatform platform, ShaderReadContext context)
     {
         Dictionary<uint, ISerializedSubProgram> subProgramsByBlob = new();
         foreach (ISerializedSubProgram subProgram in program.SubPrograms)
@@ -260,7 +266,7 @@ public sealed class ShaderRuriDecompileExporter : ShaderExporterBase
                 for (int i = 0; i < group.Count; i++)
                 {
                     SerializedPlayerSubProgram playerSubProgram = group[i];
-                    if (!MatchesPlatform(version, playerSubProgram.GpuProgramType, platform))
+                    if (!MatchesPlatform(version, playerSubProgram.GpuProgramType, platform, context))
                     {
                         continue;
                     }
@@ -292,7 +298,7 @@ public sealed class ShaderRuriDecompileExporter : ShaderExporterBase
             {
                 continue;
             }
-            if (!MatchesPlatform(version, (sbyte)subProgram.GpuProgramType, platform))
+            if (!MatchesPlatform(version, (sbyte)subProgram.GpuProgramType, platform, context))
             {
                 continue;
             }
@@ -635,7 +641,8 @@ public sealed class ShaderRuriDecompileExporter : ShaderExporterBase
 
     private static IEnumerable<UnityShaderMetadataBuilder.ProgramBlobReference> EnumerateProgramBlobIndices(ISerializedProgram program, UnityVersion version, GPUPlatform platform)
     {
-        foreach (ShaderReadSource source in EnumerateProgramSources(program, version, platform))
+        ShaderReadContext context = new(string.Empty, -1, -1, 0, version);
+        foreach (ShaderReadSource source in EnumerateProgramSources(program, version, platform, context))
         {
             yield return new UnityShaderMetadataBuilder.ProgramBlobReference(source.BlobIndex, source.ParameterBlobIndex, source.KeywordIndices);
         }
@@ -1043,8 +1050,14 @@ public sealed class ShaderRuriDecompileExporter : ShaderExporterBase
         }
     }
 
-    private static bool MatchesPlatform(UnityVersion version, sbyte rawType, GPUPlatform platform)
+    private static bool MatchesPlatform(UnityVersion version, sbyte rawType, GPUPlatform platform, ShaderReadContext context)
     {
+        GPUPlatform? resolved = ResolveRawProgramPlatform?.Invoke(context, rawType);
+        if (resolved.HasValue)
+        {
+            return resolved.Value == platform;
+        }
+
         ShaderGpuProgramType ut = ToUnityProgramType(version, rawType);
         return ProgramTypeToPlatform(ut) == platform;
     }

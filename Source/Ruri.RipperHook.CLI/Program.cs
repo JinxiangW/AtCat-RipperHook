@@ -146,6 +146,8 @@ internal static class Program
                 }));
                 return 1;
             }
+        }
+
         if (VfsCliRunner.ShouldRun(opts))
         {
             return VfsCliRunner.Run(opts);

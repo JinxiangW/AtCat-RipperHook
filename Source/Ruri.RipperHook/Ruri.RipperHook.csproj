@@ -26,6 +26,14 @@
 		<None Remove="AssetRipperGameHook\**\*" />
 	</ItemGroup>
 
+	<ItemGroup Condition="'$(PureRelease)' != 'true'">
+		<Compile Remove="EndField\Toolkit\**\*.cs" />
+		<Compile Remove="Utils\Crypto\EndField_0_8_25_LZ4Inv.cs" />
+		<Compile Remove="Utils\Crypto\VFSDecryptorVariant.cs" />
+		<EmbeddedResource Remove="EndField\Toolkit\**\*" />
+		<None Remove="EndField\Toolkit\**\*" />
+	</ItemGroup>
+
 	<ItemGroup>
 		<PackageReference Include="AsmResolver.DotNet" Version="6.0.0-beta.5" />
 		<PackageReference Include="AsmResolver.PE.File" Version="6.0.0-beta.5" />
@@ -77,9 +85,10 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<Reference Include="Ruri.SourceGenerated.dll">
+		<Reference Include="Ruri.SourceGenerated">
 			<SpecificVersion>False</SpecificVersion>
 			<HintPath>Libraries\Ruri.SourceGenerated.dll</HintPath>
 		</Reference>
 	</ItemGroup>
+
 </Project>

@@ -27,7 +27,7 @@
 		<ProjectReference Include="..\..\AssetRipper\Source\AssetRipper.Numerics\AssetRipper.Numerics.csproj" />
 	</ItemGroup>
 
-	<Target Name="CopyAfterBuild" AfterTargets="PostBuildEvent">
+	<Target Name="CopyAfterBuild" AfterTargets="PostBuildEvent" Condition="Exists('Ruri\SourceGenerated')">
 		<PropertyGroup>
 			<RelativeDestination>..\Ruri.RipperHook\Libraries\</RelativeDestination>
 		</PropertyGroup>
