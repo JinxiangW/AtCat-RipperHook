@@ -1,12 +1,12 @@
 [submodule "AssetRipper"]
 	path = AssetRipper
-	url = https://github.com/JinxiangW/AtCat-AssetRipper.git
+	url = https://github.com/AssetRipper/AssetRipper
 [submodule "Tpk"]
 	path = Tpk
 	url = https://github.com/AssetRipper/Tpk
 [submodule "Source/Ruri.ShaderDecompiler"]
 	path = Source/Ruri.ShaderDecompiler
-	url = https://github.com/JinxiangW/AtCat-ShaderDecompiler.git
+	url = https://github.com/ShiyumeMeguri/Ruri.ShaderDecompiler.git
 [submodule "FModel"]
 	path = FModel
 	url = https://github.com/4sval/FModel

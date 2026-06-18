@@ -5,26 +5,24 @@ using Ruri.UEShaderTpkDumper.Parser;
 namespace Ruri.UEShaderTpkDumper;
 
 // CLI entry point. Default behaviour:
-//   * Scan `UE_SOURCE_ROOT`, or `External/UE` relative to the repo root, for
-//     first-level subdirs whose names contain a
+//   * Scan `D:\GameStudy\UE` for first-level subdirs whose names contain a
 //     `<X>.<Y>.<Z>` version (e.g. `UnrealEngine-5.4.4-release`).
 //   * For each engine found, emit UB layout JSONs to
 //     `<Repo>/Source/Ruri.FModelHook/EngineUbMetadata/<X>.<Y>.<Z>/`.
 //
 // Flags:
-//   --ue-root <path>          Override the source root (default = UE_SOURCE_ROOT
-//                             or External/UE under the repo root)
+//   --ue-root <path>          Override the source root (default D:\GameStudy\UE)
 //   --out-root <path>         Override the output root (default = committed
 //                             EngineUbMetadata folder)
 //   --filter <regex>          Only process engines whose folder matches this
 //   --list                    Discover-only, print what would be processed
 public static class Program
 {
-    private const string UeSourceRootEnvVar = "UE_SOURCE_ROOT";
+    private const string DefaultUeRoot = @"D:\GameStudy\UE";
 
     public static int Main(string[] args)
     {
-        string ueRoot = GetDefaultUeRoot();
+        string ueRoot = DefaultUeRoot;
         string? outRoot = null;
         string? filter = null;
         bool listOnly = false;
@@ -204,8 +202,7 @@ public static class Program
           Ruri.UEShaderTpkDumper [--ue-root <path>] [--out-root <path>]
                                  [--filter <regex>] [--list]
 
-        Discovers UE engine versions under --ue-root, UE_SOURCE_ROOT, or
-        External/UE under the repo root, reads
+        Discovers UE engine versions under D:\GameStudy\UE\* (default), reads
         BEGIN_*_STRUCT blocks, computes the FRHIUniformBufferLayoutInitializer
         layout hash, and emits per-UB JSON metadata under
           <out-root>/<X.Y.Z>/<UBName>_<LayoutHash:X8>_MetaData.json
@@ -215,31 +212,4 @@ public static class Program
         `5\.4` to only do UE 5.4.x). --list prints the discovery list and
         exits without writing.
         """;
-
-    private static string GetDefaultUeRoot()
-    {
-        string? fromEnv = Environment.GetEnvironmentVariable(UeSourceRootEnvVar);
-        if (!string.IsNullOrWhiteSpace(fromEnv))
-        {
-            return fromEnv;
-        }
-
-        return Path.Combine(LocateRepoRoot(), "External", "UE");
-    }
-
-    private static string LocateRepoRoot()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null)
-        {
-            if (File.Exists(Path.Combine(dir.FullName, "Ruri-RipperHook.slnx"))
-                && Directory.Exists(Path.Combine(dir.FullName, "Source")))
-            {
-                return dir.FullName;
-            }
-            dir = dir.Parent;
-        }
-
-        return Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
-    }
 }

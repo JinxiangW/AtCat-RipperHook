@@ -233,26 +233,11 @@ public abstract class RipperHookCommon : RuriHook
             return assembly;
         }
 
+        // The common path is the default Ruri.SourceGenerated namespace. Use a direct type anchor so
+        // we do not depend on probing rules or display-name based Assembly.Load.
         if (string.Equals(generatedAssemblyNamespace, "Ruri.SourceGenerated", StringComparison.Ordinal))
         {
-            try
-            {
-                return Assembly.Load(generatedAssemblyNamespace);
-            }
-            catch
-            {
-                string localPath = Path.Combine(AppContext.BaseDirectory, $"{generatedAssemblyNamespace}.dll");
-                if (File.Exists(localPath))
-                {
-                    return Assembly.LoadFrom(localPath);
-                }
-
-                string sourcePath = Path.Combine(AppContext.BaseDirectory, "Libraries", $"{generatedAssemblyNamespace}.dll");
-                if (File.Exists(sourcePath))
-                {
-                    return Assembly.LoadFrom(sourcePath);
-                }
-            }
+            return typeof(SourceTpk).Assembly;
         }
 
         // Namespace overrides may still already be loaded under a matching assembly name.

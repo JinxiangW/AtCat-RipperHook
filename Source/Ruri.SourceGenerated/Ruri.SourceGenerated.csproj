@@ -27,11 +27,7 @@
 		<ProjectReference Include="..\..\AssetRipper\Source\AssetRipper.Numerics\AssetRipper.Numerics.csproj" />
 	</ItemGroup>
 
-	<ItemGroup>
-		<ProjectSourceFiles Include="**\*.cs" Exclude="bin\**;obj\**" />
-	</ItemGroup>
-
-	<Target Name="CopyAfterBuild" AfterTargets="PostBuildEvent" Condition="'@(ProjectSourceFiles)' != ''">
+	<Target Name="CopyAfterBuild" AfterTargets="PostBuildEvent">
 		<PropertyGroup>
 			<RelativeDestination>..\Ruri.RipperHook\Libraries\</RelativeDestination>
 		</PropertyGroup>

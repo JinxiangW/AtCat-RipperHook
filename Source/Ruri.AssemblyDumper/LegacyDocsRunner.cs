@@ -10,18 +10,13 @@ namespace AssetRipper.DocExtraction.ConsoleApp;
 /// </summary>
 internal static class LegacyDocsRunner
 {
-    private const string UnityDocsRootEnvVar = "RURI_UNITY_DOCS_ROOT";
+    private static readonly string RootInputDirectory = @"D:\Ruri\02.Unity\Tools\Unity";
 
-    private static string RootInputDirectory
-        => Environment.GetEnvironmentVariable(UnityDocsRootEnvVar) is { Length: > 0 } fromEnv
-            ? fromEnv
-            : System.IO.Path.Combine(LocateRepoRoot(), "UnityDocs");
-
-    private static List<(string Path, string Version)> PdbSearchConfigs => new()
-        {
-            (System.IO.Path.Combine(RootInputDirectory, @"2023.2.0x1\Release"), "2023.2.0x1"),
-            (System.IO.Path.Combine(RootInputDirectory, @"2021.3.39f1\Editor"), "2021.3.39f1"),
-        };
+    private static readonly List<(string Path, string Version)> PdbSearchConfigs = new()
+    {
+        (System.IO.Path.Combine(RootInputDirectory, @"2023.2.0x1\Release"), "2023.2.0x1"),
+        (System.IO.Path.Combine(RootInputDirectory, @"2021.3.39f1\Editor"), "2021.3.39f1"),
+    };
 
     private static readonly HashSet<string> PriorityPdbNames = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -80,21 +75,5 @@ internal static class LegacyDocsRunner
             Console.WriteLine($"[Docs] Exported {System.IO.Path.GetFileName(outputPath)}");
             return;
         }
-    }
-
-    private static string LocateRepoRoot()
-    {
-        var dir = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null)
-        {
-            if (System.IO.File.Exists(System.IO.Path.Combine(dir.FullName, "Ruri-RipperHook.slnx"))
-                && System.IO.Directory.Exists(System.IO.Path.Combine(dir.FullName, "Source")))
-            {
-                return dir.FullName;
-            }
-            dir = dir.Parent;
-        }
-
-        return System.IO.Path.GetFullPath(System.IO.Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
     }
 }

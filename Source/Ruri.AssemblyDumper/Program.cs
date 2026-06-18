@@ -28,7 +28,7 @@ namespace Ruri.AssemblyDumper;
 /// </summary>
 internal static class Program
 {
-    private const string TypeTreeJsonEnvVar = "RURI_TYPETREE_JSON_DIR";
+    private const string DefaultTypeTreeJsonDirectory = @"D:\Ruri\Git\FractalTools\TypeTree\output";
 
     public static int Main(string[] args)
     {
@@ -57,7 +57,7 @@ internal static class Program
                 throw new ArgumentException("Expected either no arguments, a single TypeTree JSON directory path, or the legacy 'docs'/'hook' mode.");
             }
 
-            string typeTreeJsonDirectory = args.Length == 0 ? GetDefaultTypeTreeJsonDirectory() : args[0];
+            string typeTreeJsonDirectory = args.Length == 0 ? DefaultTypeTreeJsonDirectory : args[0];
             return RunBuild(typeTreeJsonDirectory);
         }
         catch (Exception ex)
@@ -272,17 +272,6 @@ internal static class Program
             dir = dir.Parent;
         }
         return Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
-    }
-
-    private static string GetDefaultTypeTreeJsonDirectory()
-    {
-        string? fromEnv = Environment.GetEnvironmentVariable(TypeTreeJsonEnvVar);
-        if (!string.IsNullOrWhiteSpace(fromEnv))
-        {
-            return fromEnv;
-        }
-
-        return Path.Combine(LocateRepoRoot(), "TypeTree", "output");
     }
 
     private static class Try
