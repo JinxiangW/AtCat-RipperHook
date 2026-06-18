@@ -27,3 +27,10 @@ __pycache__/
 TestLoopOutput/
 # Local investigation reports
 Report/
+# CLI run logs (timestamped, regenerated each run)
+Ruri_Cli_*.log
+# Local build/output scratch directories
+out/
+tmp/
+tools/
+.dotnet/
